@@ -1,0 +1,11 @@
+# registry/hello.toml — derived from https://github.com/prova-rs/prova-hello@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "hello"
+repo         = "https://github.com/prova-rs/prova-hello"
+description  = "Hello — the registry lifecycle demo plugin (create → release → registered → removed)"
+capabilities = ["hello"]
+latest       = "v1.0"
+
+namespaces = ["hello"]
+topologies = []
+requires   = []
