@@ -1,0 +1,11 @@
+# registry/rabbitmq.toml — derived from https://github.com/prova-rs/prova-rabbitmq@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "rabbitmq"
+repo         = "https://github.com/prova-rs/prova-rabbitmq"
+description  = "RabbitMQ resource for Prova — docker-exec over rabbitmqadmin, zero native code"
+capabilities = ["rabbitmq"]
+latest       = "v1.0"
+
+namespaces = ["rabbitmq"]
+topologies = []
+requires   = []

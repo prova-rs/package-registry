@@ -1,0 +1,11 @@
+# registry/redis.toml — derived from https://github.com/prova-rs/prova-redis@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "redis"
+repo         = "https://github.com/prova-rs/prova-redis"
+description  = "Redis cache for Prova — docker-exec over redis-cli, zero native code"
+capabilities = ["redis"]
+latest       = "v1.0"
+
+namespaces = ["redis"]
+topologies = []
+requires   = []

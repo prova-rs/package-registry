@@ -1,0 +1,11 @@
+# registry/kafka.toml — derived from https://github.com/prova-rs/prova-kafka@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "kafka"
+repo         = "https://github.com/prova-rs/prova-kafka"
+description  = "Kafka streams — docker-exec over the console tools, zero native code"
+capabilities = ["kafka"]
+latest       = "v1.0"
+
+namespaces = ["kafka"]
+topologies = []
+requires   = []

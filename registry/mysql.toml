@@ -1,0 +1,11 @@
+# registry/mysql.toml — derived from https://github.com/prova-rs/prova-mysql@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "mysql"
+repo         = "https://github.com/prova-rs/prova-mysql"
+description  = "MySQL — docker-exec over the mysql CLI, zero native code"
+capabilities = ["mysql"]
+latest       = "v1.0"
+
+namespaces = ["mysql"]
+topologies = []
+requires   = []

@@ -1,0 +1,84 @@
+# The register verb (prova docs/design/registry.md, Automation): dispatch { repo, ref } →
+# check out the plugin at ref, derive its entry from its own manifest, upsert
+# registry/<name>.toml, commit. Idempotent — re-dispatching an unchanged registration
+# produces no commit. Plugin release workflows call this via `gh workflow run` (see README).
+name: register
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Plugin repo — owner/name or full https URL"
+        required: true
+      ref:
+        description: "Released tag to register (becomes the entry's `latest`)"
+        required: true
+
+# Registry writes are serialized: concurrent registrations queue, never race the push.
+concurrency:
+  group: registry-write
+
+permissions:
+  contents: write
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Normalize repo input
+        id: norm
+        env:
+          REPO_INPUT: ${{ inputs.repo }}
+        run: |
+          slug="${REPO_INPUT#https://github.com/}"
+          slug="${slug%.git}"
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          echo "url=https://github.com/$slug" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+
+      - name: Check out plugin at ref
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.norm.outputs.slug }}
+          ref: ${{ inputs.ref }}
+          path: plugin
+
+      - name: Fetch repo description (manifest fallback)
+        id: desc
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLUG: ${{ steps.norm.outputs.slug }}
+        run: |
+          desc="$(gh api "repos/$SLUG" --jq '.description // ""')"
+          echo "description=$desc" >> "$GITHUB_OUTPUT"
+
+      - name: Derive entry
+        id: derive
+        env:
+          URL: ${{ steps.norm.outputs.url }}
+          REF: ${{ inputs.ref }}
+          DESC: ${{ steps.desc.outputs.description }}
+        run: |
+          out="$(python3 scripts/derive_entry.py \
+            --plugin-dir plugin \
+            --repo "$URL" \
+            --ref "$REF" \
+            --description-fallback "$DESC" \
+            --out-dir registry)"
+          echo "entry=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Commit
+        env:
+          ENTRY: ${{ steps.derive.outputs.entry }}
+          SLUG: ${{ steps.norm.outputs.slug }}
+          REF: ${{ inputs.ref }}
+        run: |
+          git config user.name "prova-registry[bot]"
+          git config user.email "actions@github.com"
+          git add registry/
+          if git diff --cached --quiet; then
+            echo "nothing to register — entry unchanged"
+          else
+            git commit -m "register: $(basename "$ENTRY" .toml)@$REF (from $SLUG)"
+            git push
+          fi

@@ -1,0 +1,14 @@
+# The registry proves itself: the same suite gates PRs and runs after every automation
+# commit — a registry that ships a broken entry has a red proof.
+name: proofs
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  proofs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prova-rs/run-action@v1

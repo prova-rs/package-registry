@@ -1,0 +1,11 @@
+# registry/parallels.toml — derived from https://github.com/prova-rs/prova-parallels@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "parallels"
+repo         = "https://github.com/prova-rs/prova-parallels"
+description  = "Provision a Parallels VM as a topology — black-box test a full-OS target Docker can't contain"
+capabilities = ["parallels"]
+latest       = "v1.0"
+
+namespaces = ["parallels"]
+topologies = ["vm"]
+requires   = ["prlctl"]

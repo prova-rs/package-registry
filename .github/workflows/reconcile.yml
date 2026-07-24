@@ -1,0 +1,83 @@
+# The zero-touch loop, credential-free: instead of plugin repos pushing registrations here
+# (which needs a cross-repo token), this workflow PULLS the org's state on a schedule and
+# converges the registry onto it:
+#
+#   - every prova-rs/prova-* repo with a release and a `[plugin]` manifest gets an entry
+#     derived at its latest release (new repo → added; new release → `latest` bumped)
+#   - every entry whose repo is gone or archived is removed
+#
+# Everything runs on the default GITHUB_TOKEN (public reads + a push to this repo). The
+# register/remove dispatches remain the low-latency, explicit paths; this loop guarantees
+# convergence even if a dispatch was never wired or a webhook was missed.
+name: reconcile
+on:
+  schedule:
+    - cron: "17 */6 * * *" # every 6 hours
+  workflow_dispatch:
+
+concurrency:
+  group: registry-write
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Converge entries onto org state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # ── add/update: every releasable plugin repo in the org ─────────────────────────
+          gh api --paginate "orgs/prova-rs/repos?per_page=100" \
+            --jq '.[] | select(.archived | not) | select(.name | startswith("prova-")) | .name' |
+          while read -r name; do
+            tag="$(gh api "repos/prova-rs/$name/releases/latest" --jq .tag_name 2>/dev/null)" || tag=""
+            [ -n "$tag" ] || { echo "skip $name: no releases"; continue; }
+            # A plugin declares itself: no [plugin] section in prova.toml → not a plugin repo.
+            if ! gh api "repos/prova-rs/$name/contents/prova.toml?ref=$tag" \
+                  --jq .content 2>/dev/null | base64 -d | grep -q '^\[plugin\]'; then
+              echo "skip $name: no [plugin] manifest at $tag"
+              continue
+            fi
+            rm -rf plugin && mkdir plugin
+            gh api "repos/prova-rs/$name/tarball/$tag" > plugin.tar.gz
+            tar -xzf plugin.tar.gz -C plugin --strip-components=1
+            desc="$(gh api "repos/prova-rs/$name" --jq '.description // ""')"
+            python3 scripts/derive_entry.py \
+              --plugin-dir plugin \
+              --repo "https://github.com/prova-rs/$name" \
+              --ref "$tag" \
+              --description-fallback "$desc" \
+              --out-dir registry
+          done
+          rm -rf plugin plugin.tar.gz
+
+          # ── remove: entries whose repo is gone or archived ──────────────────────────────
+          for f in registry/*.toml; do
+            [ -e "$f" ] || continue
+            repo="$(sed -n 's/^repo *= *"\(.*\)"/\1/p' "$f")"
+            slug="${repo#https://github.com/}"
+            state="$(gh api "repos/$slug" --jq .archived 2>/dev/null || echo "gone")"
+            if [ "$state" = "true" ] || [ "$state" = "gone" ]; then
+              echo "removing $f: $slug is $state"
+              rm "$f"
+            fi
+          done
+
+      - name: Commit
+        run: |
+          git config user.name "prova-registry[bot]"
+          git config user.email "actions@github.com"
+          git add -A registry/
+          if git diff --cached --quiet; then
+            echo "registry already converged"
+          else
+            git commit -m "reconcile: converge registry onto org state"
+            git push
+          fi

@@ -1,0 +1,11 @@
+# registry/postgres.toml — derived from https://github.com/prova-rs/prova-postgres@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "postgres"
+repo         = "https://github.com/prova-rs/prova-postgres"
+description  = "PostgreSQL — docker-exec over psql, zero native code"
+capabilities = ["postgres"]
+latest       = "v1.0"
+
+namespaces = ["postgres"]
+topologies = []
+requires   = []

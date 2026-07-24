@@ -1,0 +1,33 @@
+# The delete verb (prova docs/design/registry.md, Automation): dispatch { name } → remove
+# registry/<name>.toml, commit. Fails loud if the entry does not exist — a remove that
+# removes nothing is a mistake worth hearing about, not an idempotent shrug.
+name: remove
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Registry entry to remove (registry/<name>.toml)"
+        required: true
+
+concurrency:
+  group: registry-write
+
+permissions:
+  contents: write
+
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove entry
+        env:
+          NAME: ${{ inputs.name }}
+        run: |
+          test -f "registry/$NAME.toml" || { echo "no entry registry/$NAME.toml"; exit 1; }
+          git config user.name "prova-registry[bot]"
+          git config user.email "actions@github.com"
+          git rm "registry/$NAME.toml"
+          git commit -m "remove: $NAME"
+          git push

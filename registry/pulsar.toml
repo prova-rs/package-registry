@@ -1,0 +1,11 @@
+# registry/pulsar.toml — derived from https://github.com/prova-rs/prova-pulsar@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "pulsar"
+repo         = "https://github.com/prova-rs/prova-pulsar"
+description  = "Apache Pulsar streams — docker-exec over pulsar-client, zero native code"
+capabilities = ["pulsar"]
+latest       = "v1.0"
+
+namespaces = ["pulsar"]
+topologies = []
+requires   = []
