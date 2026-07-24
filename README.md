@@ -57,15 +57,15 @@ Three paths in, one path out:
       runs-on: ubuntu-latest
       steps:
         - env:
-            GH_TOKEN: ${{ secrets.REGISTRY_DISPATCH_TOKEN }}
+            GH_TOKEN: ${{ secrets.PROVA_DISPATCH_TOKEN }}
           run: |
             gh workflow run register.yml -R prova-rs/package-registry \
               -f repo="${{ github.repository }}" -f ref="${{ github.event.release.tag_name }}"
   ```
 
-  `REGISTRY_DISPATCH_TOKEN` is a fine-grained PAT (or GitHub App token) with Actions write on
-  `prova-rs/package-registry`, set as an org secret so every plugin repo inherits it. Without it,
-  the reconcile loop still registers the release within 6 hours.
+  `PROVA_DISPATCH_TOKEN` is the org-wide secret prova's release automation already uses for
+  cross-repo work — every plugin repo inherits it. If the dispatch ever fails, the reconcile
+  loop still registers the release within 6 hours.
 - **Pull request (the third-party path).** Anyone can PR an entry file; review of that one-file
   diff is the curation step. The proof suite validates it like every other entry.
 
