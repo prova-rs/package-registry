@@ -1,7 +1,13 @@
 # The register verb (prova docs/design/registry.md, Automation): dispatch { repo, ref } →
 # check out the plugin at ref, derive its entry from its own manifest, upsert
 # registry/<name>.toml, commit. Idempotent — re-dispatching an unchanged registration
-# produces no commit. Plugin release workflows call this via `gh workflow run` (see README).
+# produces no commit.
+#
+# Two front doors, one job: workflow_dispatch for humans (`gh workflow run`), and
+# repository_dispatch (event_type: register) for plugin release hops — creating a
+# repository_dispatch event needs only Contents: write on this repo, a permission the
+# org's PROVA_DISPATCH_TOKEN already carries, where workflow_dispatch would demand
+# Actions: write.
 name: register
 on:
   workflow_dispatch:
@@ -12,6 +18,8 @@ on:
       ref:
         description: "Released tag to register (becomes the entry's `latest`)"
         required: true
+  repository_dispatch:
+    types: [register]
 
 # Registry writes are serialized: concurrent registrations queue, never race the push.
 concurrency:
@@ -27,7 +35,7 @@ jobs:
       - name: Normalize repo input
         id: norm
         env:
-          REPO_INPUT: ${{ inputs.repo }}
+          REPO_INPUT: ${{ inputs.repo || github.event.client_payload.repo }}
         run: |
           slug="${REPO_INPUT#https://github.com/}"
           slug="${slug%.git}"
@@ -40,7 +48,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.norm.outputs.slug }}
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.event.client_payload.ref }}
           path: plugin
 
       - name: Fetch repo description (manifest fallback)
@@ -56,7 +64,7 @@ jobs:
         id: derive
         env:
           URL: ${{ steps.norm.outputs.url }}
-          REF: ${{ inputs.ref }}
+          REF: ${{ inputs.ref || github.event.client_payload.ref }}
           DESC: ${{ steps.desc.outputs.description }}
         run: |
           out="$(python3 scripts/derive_entry.py \
@@ -71,7 +79,7 @@ jobs:
         env:
           ENTRY: ${{ steps.derive.outputs.entry }}
           SLUG: ${{ steps.norm.outputs.slug }}
-          REF: ${{ inputs.ref }}
+          REF: ${{ inputs.ref || github.event.client_payload.ref }}
         run: |
           git config user.name "prova-registry[bot]"
           git config user.email "actions@github.com"
