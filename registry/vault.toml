@@ -1,0 +1,11 @@
+# registry/vault.toml — derived from https://github.com/prova-rs/prova-vault@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "vault"
+repo         = "https://github.com/prova-rs/prova-vault"
+description  = "HashiCorp Vault — ephemeral dev-mode server, KV v2 seeded and asserted over the vault CLI, zero native code"
+capabilities = ["vault"]
+latest       = "v1.0"
+
+namespaces = ["vault"]
+topologies = []
+requires   = []

@@ -1,0 +1,11 @@
+# registry/s3.toml — derived from https://github.com/prova-rs/prova-s3@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "s3"
+repo         = "https://github.com/prova-rs/prova-s3"
+description  = "S3-compatible object store (MinIO) — docker-exec over mc, zero native code"
+capabilities = ["s3"]
+latest       = "v1.0"
+
+namespaces = ["s3"]
+topologies = []
+requires   = []

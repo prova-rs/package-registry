@@ -1,0 +1,11 @@
+# registry/mongodb.toml — derived from https://github.com/prova-rs/prova-mongodb@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "mongodb"
+repo         = "https://github.com/prova-rs/prova-mongodb"
+description  = "MongoDB — docker-exec over the mongosh CLI, zero native code"
+capabilities = ["mongodb"]
+latest       = "v1.0"
+
+namespaces = ["mongodb"]
+topologies = []
+requires   = []
