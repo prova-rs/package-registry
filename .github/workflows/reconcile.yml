@@ -2,9 +2,16 @@
 # (which needs a cross-repo token), this workflow PULLS the org's state on a schedule and
 # converges the registry onto it:
 #
-#   - every prova-rs/prova-* repo with a release and a `[plugin]` manifest gets an entry
-#     derived at its latest release (new repo → added; new release → `latest` bumped)
-#   - every entry whose repo is gone or archived is removed
+#   - every prova-rs/prova-* repo with a release and a `[plugin]` manifest gets a PLUGIN entry
+#     in registry/, derived at its latest release (new repo → added; new release → `latest` bumped)
+#   - every prova-rs/prova-* repo with a release and an `archetype.yaml` declaring `prova.init_key`
+#     gets an ARCHETYPE entry in archetypes/, derived the same way
+#   - every entry (either kind) whose repo is gone or archived is removed
+#
+# The two are separate namespaces on purpose (prova's docs/design/registry.md): an archetype key and
+# a plugin name never collide, and the entries project from different sources — `[plugin]` in
+# prova.toml versus the `prova:` block in archetype.yaml. A repo declares which it is; a repo that is
+# neither is skipped, and a repo could in principle be both.
 #
 # Everything runs on the default GITHUB_TOKEN (public reads + a push to this repo). The
 # register/remove dispatches remain the low-latency, explicit paths; this loop guarantees
@@ -27,39 +34,82 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # derive_archetype_entry.py reads archetype.yaml. Installed explicitly rather than relying on the
+      # runner image shipping PyYAML, so a runner-image change cannot silently stop archetypes
+      # registering (the failure mode would be a skip, which is invisible by design).
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet pyyaml
+
       - name: Converge entries onto org state
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          mkdir -p registry archetypes
 
-          # ── add/update: every releasable plugin repo in the org ─────────────────────────
+          # ── add/update: every releasable plugin or archetype repo in the org ────────────
           gh api --paginate "orgs/prova-rs/repos?per_page=100" \
             --jq '.[] | select(.archived | not) | select(.name | startswith("prova-")) | .name' |
           while read -r name; do
             tag="$(gh api "repos/prova-rs/$name/releases/latest" --jq .tag_name 2>/dev/null)" || tag=""
             [ -n "$tag" ] || { echo "skip $name: no releases"; continue; }
-            # A plugin declares itself: no [plugin] section in prova.toml → not a plugin repo.
-            if ! gh api "repos/prova-rs/$name/contents/prova.toml?ref=$tag" \
-                  --jq .content 2>/dev/null | base64 -d | grep -q '^\[plugin\]'; then
-              echo "skip $name: no [plugin] manifest at $tag"
+
+            # A repo declares what it is. Check both markers before deciding to fetch a tarball, so a
+            # repo that is neither costs one cheap contents call rather than a download.
+            is_plugin=no
+            is_archetype=no
+            if gh api "repos/prova-rs/$name/contents/prova.toml?ref=$tag" \
+                 --jq .content 2>/dev/null | base64 -d | grep -q '^\[plugin\]'; then
+              is_plugin=yes
+            fi
+            if gh api "repos/prova-rs/$name/contents/archetype.yaml?ref=$tag" >/dev/null 2>&1; then
+              is_archetype=yes
+            fi
+            if [ "$is_plugin" = no ] && [ "$is_archetype" = no ]; then
+              echo "skip $name: neither a [plugin] manifest nor an archetype.yaml at $tag"
               continue
             fi
-            rm -rf plugin && mkdir plugin
-            gh api "repos/prova-rs/$name/tarball/$tag" > plugin.tar.gz
-            tar -xzf plugin.tar.gz -C plugin --strip-components=1
+
+            rm -rf checkout && mkdir checkout
+            gh api "repos/prova-rs/$name/tarball/$tag" > checkout.tar.gz
+            tar -xzf checkout.tar.gz -C checkout --strip-components=1
             desc="$(gh api "repos/prova-rs/$name" --jq '.description // ""')"
-            python3 scripts/derive_entry.py \
-              --plugin-dir plugin \
-              --repo "https://github.com/prova-rs/$name" \
-              --ref "$tag" \
-              --description-fallback "$desc" \
-              --out-dir registry
+
+            if [ "$is_plugin" = yes ]; then
+              python3 scripts/derive_entry.py \
+                --plugin-dir checkout \
+                --repo "https://github.com/prova-rs/$name" \
+                --ref "$tag" \
+                --description-fallback "$desc" \
+                --out-dir registry
+            fi
+
+            if [ "$is_archetype" = yes ]; then
+              # Exit 2 means "not a registrable archetype" (no `prova.init_key`) — a normal skip that
+              # must not fail the loop. Any other non-zero IS a real derivation failure (a malformed
+              # key, a bad in_package) and should stop the run rather than quietly leave the entry
+              # stale, so it is re-raised.
+              set +e
+              python3 scripts/derive_archetype_entry.py \
+                --archetype-dir checkout \
+                --repo "https://github.com/prova-rs/$name" \
+                --ref "$tag" \
+                --description-fallback "$desc" \
+                --out-dir archetypes
+              rc=$?
+              set -e
+              if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then
+                echo "::error::deriving archetype entry for $name at $tag failed (exit $rc)"
+                exit "$rc"
+              fi
+            fi
           done
-          rm -rf plugin plugin.tar.gz
+          rm -rf checkout checkout.tar.gz
 
           # ── remove: entries whose repo is gone or archived ──────────────────────────────
-          for f in registry/*.toml; do
+          # Both namespaces, one rule. An archetype entry outliving its repo would leave
+          # `prova init <key>` resolving to something unfetchable — a worse failure than absence.
+          for f in registry/*.toml archetypes/*.toml; do
             [ -e "$f" ] || continue
             repo="$(sed -n 's/^repo *= *"\(.*\)"/\1/p' "$f")"
             slug="${repo#https://github.com/}"
@@ -74,7 +124,7 @@ jobs:
         run: |
           git config user.name "prova-registry[bot]"
           git config user.email "actions@github.com"
-          git add -A registry/
+          git add -A registry/ archetypes/
           if git diff --cached --quiet; then
             echo "registry already converged"
           else

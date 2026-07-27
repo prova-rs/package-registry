@@ -47,6 +47,110 @@ prova.test("entries are self-consistent: filename = name, schema known, repo wel
   end
 end)
 
+-- ── archetypes/ — the `prova init` half of this registry ─────────────────────────────────────
+--
+-- Same bar as the plugin entries above, and the same reason: an entry this registry ships must never
+-- need the consumer's tolerance path. A skipped entry keeps its siblings serving, which is correct
+-- behaviour for someone ELSE's registry and a red proof for ours.
+--
+-- Entries here are derived by scripts/derive_archetype_entry.py from each archetype's `archetype.yaml`
+-- (`prova:` block for the key and in_package; description and repo from the repo itself). Never
+-- hand-edited — re-register instead.
+
+-- Deliberately tolerant of an empty/absent `archetypes/`: the two validation proofs below gate
+-- whatever is present (a third-party PR adding an entry is checked the moment it lands), while the
+-- fact that OUR archetypes are not registered yet is tracked as the open spec at the end of this
+-- section rather than hidden inside a loop that silently runs zero times.
+local function archetype_entries()
+  local files = fs.glob(".", "archetypes/*.toml")
+  table.sort(files)
+  return files
+end
+
+prova.test("archetype entries are self-consistent: filename = name, schema known, repo well-formed",
+  function(t)
+  for _, f in ipairs(archetype_entries()) do
+    local stem = f:match("archetypes/(.+)%.toml") or f:match("([^/]+)%.toml")
+    local doc = toml.decode(fs.read(f))
+
+    t:expect(doc.name, f .. ": name must match the filename"):equals(stem)
+    t:expect(doc.schema, f .. ": schema"):equals(1)
+
+    -- The key is a filename AND a `prova init <key>` argument — it has to survive both.
+    t:expect(stem:match("^[a-z0-9][a-z0-9%-_]*$") ~= nil,
+      f .. ": key must be lowercase alphanumeric with - or _"):is_true()
+
+    local repo = tostring(doc.repo or "")
+    t:expect(repo:match("^https://") ~= nil or repo:match("^git@") ~= nil,
+      f .. ": repo must be a git source, got " .. repo):is_true()
+
+    t:expect(#tostring(doc.description or "") > 0, f .. ": needs a description"):is_true()
+
+    -- `latest` is the ref `prova init` renders. Absent means the default branch, which makes
+    -- scaffolding drift when that branch moves — not something this registry should ever ship.
+    t:expect(doc.latest ~= nil, f .. ": needs a recommended pin"):is_true()
+
+    -- in_package is optional (absent means deny), but a typo must not silently become deny: prova's
+    -- resolver degrades an unknown value, so the check has to live here.
+    if doc.in_package ~= nil then
+      local ok = doc.in_package == "deny" or doc.in_package == "allow"
+      t:expect(ok, f .. ": in_package must be \"deny\" or \"allow\", got "
+        .. tostring(doc.in_package)):is_true()
+    end
+  end
+end)
+
+prova.test("the real consumer resolves and would render every archetype entry", function(t)
+  -- Through the REAL consumer, like the plugin check above: point prova at this checkout as its sole
+  -- registry and ask it to resolve each key. `--list` deliberately shows only the catalog, so the
+  -- lookup is exercised by naming the key — which is also the code path a user takes.
+  local root = shell.run("pwd", { check = true }).stdout:gsub("%s+$", "")
+  local home = fs.tempdir()
+  fs.write(home .. "/prova/config.toml",
+    '[[registries]]\nname = "prova-rs"\nsource = "' .. root .. '"\n')
+
+  for _, f in ipairs(archetype_entries()) do
+    local key = f:match("archetypes/(.+)%.toml") or f:match("([^/]+)%.toml")
+    -- `--list` after the key would be ambiguous; instead ask for a render into a throwaway dir with a
+    -- source we know cannot be fetched offline. What is under proof is that prova RESOLVES the key —
+    -- it must never fail with "unknown init key", which is what a malformed entry would produce.
+    local dest = fs.tempdir()
+    local r = shell.run("prova init " .. key .. " --headless 2>&1",
+      { cwd = dest, env = { XDG_CONFIG_HOME = home } })
+    t:expect(r.stdout, f .. ": prova must not reject the key"):never():contains("unknown init key")
+    t:expect(r.stdout, f .. ": entry must not be skipped by tolerance")
+      :never():contains("skipping archetype")
+  end
+end)
+
+-- The contract that is REAL but not yet satisfiable, so it is flagged rather than asserted.
+--
+-- `prova init project` / `prova init plugin` work today from prova's built-in catalog, which carries
+-- explicit pinned URLs — but nothing has published them here, so they are not *discoverable*: a user
+-- browsing this registry cannot find them. Registration is automated and derives from the archetype's
+-- `archetype.yaml` at the RELEASED tag, and the `prova:` block those archetypes now declare has not
+-- shipped in a release yet. So the loop correctly skips them, and there is nothing to hand-seed: a
+-- fabricated entry would be one the automation could not currently reproduce.
+--
+-- Flagged as a spec because that is exactly this shape — a bar we intend to meet, red by definition
+-- until the archetypes' next release, and one that FAILS demanding graduation the moment it starts
+-- passing. When it does: drop the flag and this becomes a standing guardrail that the org's archetypes
+-- stay registered.
+prova.test("this registry serves the org's own archetypes",
+  { spec = "archetypes/ populates at the archetypes' first release carrying a prova: block" },
+  function(t)
+  local files = archetype_entries()
+  t:expect(#files > 0, "archetypes/ must serve at least one entry"):is_true()
+
+  -- The two prova ships built-in are the ones whose absence is a discoverability gap.
+  local keys = {}
+  for _, f in ipairs(files) do
+    keys[(f:match("archetypes/(.+)%.toml") or f:match("([^/]+)%.toml"))] = true
+  end
+  t:expect(keys["project"] == true, "project must be discoverable here"):is_true()
+  t:expect(keys["plugin"] == true, "plugin must be discoverable here"):is_true()
+end)
+
 prova.test("info serves full detail for a spot-checked entry", function(t)
   local root = shell.run("pwd", { check = true }).stdout:gsub("%s+$", "")
   local home = fs.tempdir()

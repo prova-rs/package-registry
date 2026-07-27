@@ -1,7 +1,12 @@
 # The register verb (prova docs/design/registry.md, Automation): dispatch { repo, ref } →
-# check out the plugin at ref, derive its entry from its own manifest, upsert
-# registry/<name>.toml, commit. Idempotent — re-dispatching an unchanged registration
-# produces no commit.
+# check out the repo at ref, derive its entry from what the repo itself declares, upsert, commit.
+# Idempotent — re-dispatching an unchanged registration produces no commit.
+#
+# Handles both namespaces from one dispatch, because the caller should not have to know which it is:
+# a `[plugin]` manifest yields registry/<name>.toml, an archetype.yaml declaring `prova.init_key`
+# yields archetypes/<key>.toml, and a repo that is both yields both. A repo that is neither fails the
+# run — an explicit register of something unregistrable is a mistake worth surfacing, unlike the
+# reconcile loop's sweep where a skip is the normal case.
 #
 # Two front doors, one job: workflow_dispatch for humans (`gh workflow run`), and
 # repository_dispatch (event_type: register) for plugin release hops — creating a
@@ -13,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       repo:
-        description: "Plugin repo — owner/name or full https URL"
+        description: "Plugin or archetype repo — owner/name or full https URL"
         required: true
       ref:
         description: "Released tag to register (becomes the entry's `latest`)"
@@ -44,12 +49,17 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Check out plugin at ref
+      - name: Check out the repo at ref
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.norm.outputs.slug }}
           ref: ${{ inputs.ref || github.event.client_payload.ref }}
-          path: plugin
+          path: checkout
+
+      # derive_archetype_entry.py reads archetype.yaml. Installed explicitly so a runner-image change
+      # cannot silently turn archetype registration into a skip.
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet pyyaml
 
       - name: Fetch repo description (manifest fallback)
         id: desc
@@ -60,33 +70,68 @@ jobs:
           desc="$(gh api "repos/$SLUG" --jq '.description // ""')"
           echo "description=$desc" >> "$GITHUB_OUTPUT"
 
-      - name: Derive entry
+      - name: Derive entries
         id: derive
         env:
           URL: ${{ steps.norm.outputs.url }}
           REF: ${{ inputs.ref || github.event.client_payload.ref }}
           DESC: ${{ steps.desc.outputs.description }}
         run: |
-          out="$(python3 scripts/derive_entry.py \
-            --plugin-dir plugin \
-            --repo "$URL" \
-            --ref "$REF" \
-            --description-fallback "$DESC" \
-            --out-dir registry)"
-          echo "entry=$out" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          mkdir -p registry archetypes
+          derived=""
+
+          # A repo declares what it is; register whichever markers are present. Both is legal.
+          if grep -q '^\[plugin\]' checkout/prova.toml 2>/dev/null; then
+            out="$(python3 scripts/derive_entry.py \
+              --plugin-dir checkout \
+              --repo "$URL" \
+              --ref "$REF" \
+              --description-fallback "$DESC" \
+              --out-dir registry)"
+            echo "derived plugin entry: $out"
+            derived="$derived $(basename "$out" .toml)"
+          fi
+
+          if [ -f checkout/archetype.yaml ]; then
+            # Exit 2 is "declares no prova.init_key" — for an EXPLICIT register that is a mistake, not
+            # a normal skip (the reconcile loop's sweep treats it as one). Fail with the reason the
+            # script already printed, so a maintainer who expected registration learns why.
+            set +e
+            out="$(python3 scripts/derive_archetype_entry.py \
+              --archetype-dir checkout \
+              --repo "$URL" \
+              --ref "$REF" \
+              --description-fallback "$DESC" \
+              --out-dir archetypes)"
+            rc=$?
+            set -e
+            if [ "$rc" != 0 ]; then
+              echo "::error::$URL@$REF has an archetype.yaml but is not registrable (exit $rc)"
+              exit 1
+            fi
+            echo "derived archetype entry: $out"
+            derived="$derived $(basename "$out" .toml)"
+          fi
+
+          if [ -z "${derived// /}" ]; then
+            echo "::error::$URL@$REF is neither a plugin (no [plugin] manifest) nor an archetype (no archetype.yaml)"
+            exit 1
+          fi
+          echo "entries=${derived# }" >> "$GITHUB_OUTPUT"
 
       - name: Commit
         env:
-          ENTRY: ${{ steps.derive.outputs.entry }}
+          ENTRIES: ${{ steps.derive.outputs.entries }}
           SLUG: ${{ steps.norm.outputs.slug }}
           REF: ${{ inputs.ref || github.event.client_payload.ref }}
         run: |
           git config user.name "prova-registry[bot]"
           git config user.email "actions@github.com"
-          git add registry/
+          git add registry/ archetypes/
           if git diff --cached --quiet; then
-            echo "nothing to register — entry unchanged"
+            echo "nothing to register — entries unchanged"
           else
-            git commit -m "register: $(basename "$ENTRY" .toml)@$REF (from $SLUG)"
+            git commit -m "register: $ENTRIES@$REF (from $SLUG)"
             git push
           fi
