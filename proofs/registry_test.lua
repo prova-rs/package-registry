@@ -123,21 +123,18 @@ prova.test("the real consumer resolves and would render every archetype entry", 
   end
 end)
 
--- The contract that is REAL but not yet satisfiable, so it is flagged rather than asserted.
+-- `prova init project` / `prova init plugin` work from prova's built-in catalog, which carries
+-- explicit pinned URLs — but that alone does not make them *discoverable*: a user browsing this
+-- registry has to find them here. Registration is automated and derives from the archetype's
+-- `archetype.yaml` at the RELEASED tag, so an entry exists exactly when a release carrying a
+-- `prova:` block does.
 --
--- `prova init project` / `prova init plugin` work today from prova's built-in catalog, which carries
--- explicit pinned URLs — but nothing has published them here, so they are not *discoverable*: a user
--- browsing this registry cannot find them. Registration is automated and derives from the archetype's
--- `archetype.yaml` at the RELEASED tag, and the `prova:` block those archetypes now declare has not
--- shipped in a release yet. So the loop correctly skips them, and there is nothing to hand-seed: a
--- fabricated entry would be one the automation could not currently reproduce.
---
--- Flagged as a spec because that is exactly this shape — a bar we intend to meet, red by definition
--- until the archetypes' next release, and one that FAILS demanding graduation the moment it starts
--- passing. When it does: drop the flag and this becomes a standing guardrail that the org's archetypes
--- stay registered.
+-- This graduated from a spec at the archetypes' v1.1 release, the first to ship that block. It is
+-- now a standing guardrail: if either entry disappears — a botched reconcile, a dropped `prova:`
+-- block, a repo rename — the org's own archetypes have silently stopped being discoverable, and
+-- this goes red instead of nobody noticing.
 prova.test("this registry serves the org's own archetypes",
-  { spec = "archetypes/ populates at the archetypes' first release carrying a prova: block" },
+  { proves = "the org's archetypes stay registered — discoverability is not a manual step" },
   function(t)
   local files = archetype_entries()
   t:expect(#files > 0, "archetypes/ must serve at least one entry"):is_true()
