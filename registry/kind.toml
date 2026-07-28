@@ -1,0 +1,11 @@
+# registry/kind.toml — derived from https://github.com/prova-rs/prova-kind@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "kind"
+repo         = "https://github.com/prova-rs/prova-kind"
+description  = "Provision a real Kubernetes cluster (kind) as a topology — black-box test operators, CRDs, and chart probes against a live control plane"
+capabilities = ["kind"]
+latest       = "v1.0"
+
+namespaces = ["kind"]
+topologies = ["cluster"]
+requires   = ["docker", "kind", "kubectl"]
