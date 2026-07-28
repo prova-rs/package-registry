@@ -1,7 +1,7 @@
-# archetypes/plugin.toml — derived from https://github.com/prova-rs/prova-init-plugin-archetype@v1.1; do not hand-edit (re-register instead)
+# archetypes/plugin.toml — derived from https://github.com/prova-rs/prova-init-plugin-archetype@v1.2; do not hand-edit (re-register instead)
 schema      = 1
 name        = "plugin"
 repo        = "https://github.com/prova-rs/prova-init-plugin-archetype"
 description = "A prova package that also exports a namespace — a plugin (init.lua + [plugin] + self-test), as its own repo or local under a package's plugin_root"
-latest      = "v1.1"
+latest      = "v1.2"
 in_package  = "allow"
