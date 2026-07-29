@@ -1,0 +1,11 @@
+# registry/xcodebuild.toml — derived from https://github.com/prova-rs/prova-xcodebuild@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "xcodebuild"
+repo         = "https://github.com/prova-rs/prova-xcodebuild"
+description  = "Run and decode Xcode test bundles — enumerate, build-for-testing, and per-case results from xcresult"
+capabilities = ["xcodebuild"]
+latest       = "v1.0"
+
+namespaces = ["xcodebuild"]
+topologies = []
+requires   = []
