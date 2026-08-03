@@ -1,4 +1,7 @@
-# The prova-rs plugin registry proves itself: the suite in proofs/ holds every entry to the
+[requires]
+prova = ">= 0.16"
+
+# The prova-rs package registry proves itself: the suite in proofs/ holds every entry to the
 # bar the consumer expects (see proofs/registry_test.lua). Run with a released prova binary
 # on PATH: `prova`.
 [run]
