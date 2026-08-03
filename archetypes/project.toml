@@ -1,7 +1,7 @@
-# archetypes/project.toml — derived from https://github.com/prova-rs/prova-init-project-archetype@v1.1; do not hand-edit (re-register instead)
+# archetypes/project.toml — derived from https://github.com/prova-rs/prova-init-project-archetype@v2.0; do not hand-edit (re-register instead)
 schema      = 1
 name        = "project"
 repo        = "https://github.com/prova-rs/prova-init-project-archetype"
 description = "A prova package — the .prova/ nook (manifest, config, shared lib plugin) plus a starter proof suite"
-latest      = "v1.1"
+latest      = "v2.0"
 in_package  = "deny"
