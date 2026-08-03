@@ -1,0 +1,7 @@
+# archetypes/package.toml — derived from https://github.com/prova-rs/prova-init-package-archetype@v2.0; do not hand-edit (re-register instead)
+schema      = 1
+name        = "package"
+repo        = "https://github.com/prova-rs/prova-init-package-archetype"
+description = "A prova package that also exports a namespace — a package (init.lua + [package] + self-test), as its own repo or local under a package's packages"
+latest      = "v2.0"
+in_package  = "allow"
