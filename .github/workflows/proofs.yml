@@ -15,4 +15,4 @@ jobs:
         with:
           # The self-proofs drive `prova plugins` (v0.11.0) and read entries with `toml.decode`,
           # the format-naming rename that landed in v0.13.0. The later floor wins.
-          version: v0.13.0
+          version: v0.16.0   # the package-vocabulary line ([dependencies], packages)
