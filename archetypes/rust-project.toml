@@ -1,0 +1,7 @@
+# archetypes/rust-project.toml — derived from https://github.com/prova-rs/prova-init-rust-project-archetype@v1.0; do not hand-edit (re-register instead)
+schema      = 1
+name        = "rust-project"
+repo        = "https://github.com/prova-rs/prova-init-rust-project-archetype"
+description = "Retrofit a Rust project with a quality surface driven through prova — the clippy wall, unwrap/expect + duplication + file-size ratchets, deputed unit tests, ratcheted coverage; promptless, layout-agnostic, safe over existing files"
+latest      = "v1.0"
+in_package  = "deny"
