@@ -1,0 +1,11 @@
+# registry/aegis.toml — derived from https://github.com/anemnez/prova-aegis@v1.0; do not hand-edit (re-register instead)
+schema       = 1
+name         = "aegis"
+repo         = "https://github.com/anemnez/prova-aegis"
+description  = "Provision a hermetic Aegis Gate Authority and drive it through the aegis CLI — gates, grants, audit, black-box"
+capabilities = ["aegis"]
+latest       = "v1.0"
+
+namespaces = ["aegis"]
+topologies = []
+requires   = []
