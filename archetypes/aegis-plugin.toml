@@ -1,0 +1,7 @@
+# archetypes/aegis-plugin.toml — derived from https://github.com/anemnez/aegis-init-plugin-archetype@v1.0; do not hand-edit (re-register instead)
+schema      = 1
+name        = "aegis-plugin"
+repo        = "https://github.com/anemnez/aegis-init-plugin-archetype"
+description = "An Aegis authorizer plugin as its own repo — the plugin, its dev loop, and a proof suite driving a hermetic consent daemon, black-box through the published `aegis` binary"
+latest      = "v1.0"
+in_package  = "deny"
